@@ -19,13 +19,24 @@ public class ProcessControlBlock {
         this.priority = priority;
     }
 
-    // Getters y setters
-    public String getPid() { return pid; }
-    public int getArrivalTime() { return arrivalTime; }
-    public int getBurstTime() { return burstTime; }
+    public String getPid() {
+        return pid;
+    }
+
+    public int getArrivalTime() {
+        return arrivalTime;
+    }
+
+    public int getBurstTime() {
+        return burstTime;
+    }
+
+    public int getPriority() {
+        return priority;
+    }
+
     public int getRemainingTime() { return remainingTime; }
     public void setRemainingTime(int t) { this.remainingTime = t; }
-    public int getPriority() { return priority; }
     public int getStartTime() { return startTime; }
     public void setStartTime(int t) { this.startTime = t; }
     public int getFinishTime() { return finishTime; }

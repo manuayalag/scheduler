@@ -7,7 +7,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.*;
 import java.util.List;
-import java.util.Queue;
+import java.util.stream.Collectors;
 
 public class SchedulerGUI extends JFrame {
     private JTable processTable;
@@ -33,7 +33,7 @@ public class SchedulerGUI extends JFrame {
         JButton runButton = new JButton("Run Scheduling");
 
         loadButton.addActionListener(e -> {
-            File file = new File("src/scheduler/Procesos.csv");
+            File file = new File("scheduler/Procesos.csv");
             try {
                 loadCSV(file);
             } catch (Exception ex) {
@@ -43,7 +43,7 @@ public class SchedulerGUI extends JFrame {
 
         runButton.addActionListener(e -> runScheduling());
 
-        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF", "Round Robin"});
+        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF NP", "SJF P", "Round Robin", "HRRN", "Priority NP", "Priority P", "MultiLevelQueue" });
         quantumField = new JTextField(5);
         quantumField.setEnabled(false);
 
@@ -103,6 +103,17 @@ public class SchedulerGUI extends JFrame {
         }
     }
 
+    // Helper para clonar la lista original de PCB
+    private List<ProcessControlBlock> cloneProcesses() {
+        return processes.stream()
+                .map(p -> new ProcessControlBlock(
+                        p.getPid(),
+                        p.getArrivalTime(),
+                        p.getBurstTime(),
+                        p.getPriority()))
+                .collect(Collectors.toList());
+    }
+
     private void runScheduling() {
         if (processes == null || processes.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No processes loaded!");
@@ -111,109 +122,87 @@ public class SchedulerGUI extends JFrame {
 
         String selectedAlgo = algoBox.getSelectedItem().toString();
         List<GanttBlock> schedule = new ArrayList<>();
-        int currentTime = 0;
         double totalWaiting = 0;
         double totalTurnaround = 0;
-        List<ProcessControlBlock> procCopy = new ArrayList<>(processes);
+        int count = processes.size();
 
-        if (selectedAlgo.equals("FCFS")) {
-            // Ordenar por tiempo de llegada
-            Collections.sort(procCopy, Comparator.comparingInt(ProcessControlBlock::getArrivalTime));
-            for (ProcessControlBlock pcb : procCopy) {
-                int start = Math.max(currentTime, pcb.getArrivalTime());
-                int waiting = start - pcb.getArrivalTime();
-                int finish = start + pcb.getBurstTime();
-                int turnaround = finish - pcb.getArrivalTime();
-                totalWaiting += waiting;
-                totalTurnaround += turnaround;
-                schedule.add(new GanttBlock(pcb.getPid(), start, finish));
-                currentTime = finish;
-            }
-        } else if (selectedAlgo.equals("SJF")) {
-            // Shortest Job First (no preemptivo)
-            procCopy.sort(Comparator.comparingInt(ProcessControlBlock::getArrivalTime));
-            List<ProcessControlBlock> ready = new ArrayList<>();
-            currentTime = procCopy.get(0).getArrivalTime();
-            while (!procCopy.isEmpty() || !ready.isEmpty()) {
-                while (!procCopy.isEmpty() && procCopy.get(0).getArrivalTime() <= currentTime) {
-                    ready.add(procCopy.remove(0));
+        try {
+            List<GanttEntry> ganttEntries;
+            switch (selectedAlgo) {
+                case "FCFS": {
+                    FCFS fcfs = new FCFS(cloneProcesses());
+                    fcfs.execute();
+                    ganttEntries = fcfs.getGantt();
+                    break;
                 }
-                if (ready.isEmpty()) {
-                    currentTime = procCopy.get(0).getArrivalTime();
-                    continue;
+                case "SJF NP": {
+                    SJFSchedulerNonPreemptive sjfNP = new SJFSchedulerNonPreemptive(cloneProcesses());
+                    sjfNP.execute();
+                    ganttEntries = sjfNP.getGantt();
+                    break;
                 }
-                ready.sort(Comparator.comparingInt(ProcessControlBlock::getBurstTime));
-                ProcessControlBlock pcb = ready.remove(0);
-                int start = currentTime;
-                int waiting = start - pcb.getArrivalTime();
-                int finish = start + pcb.getBurstTime();
-                int turnaround = finish - pcb.getArrivalTime();
-                totalWaiting += waiting;
-                totalTurnaround += turnaround;
-                schedule.add(new GanttBlock(pcb.getPid(), start, finish));
-                currentTime = finish;
-            }
-        } else if (selectedAlgo.equals("Round Robin")) {
-            // Round Robin scheduling
-            int quantum;
-            try {
-                quantum = Integer.parseInt(quantumField.getText().trim());
-            } catch (NumberFormatException e) {
-                JOptionPane.showMessageDialog(this, "Please enter a valid quantum.");
-                return;
-            }
-            Queue<ProcessControlBlock> queue = new LinkedList<>();
-            procCopy.sort(Comparator.comparingInt(ProcessControlBlock::getArrivalTime));
-            currentTime = procCopy.get(0).getArrivalTime();
-            int index = 0;
-            // Mapa para mantener el burst restante de cada proceso
-            Map<ProcessControlBlock, Integer> remainingBurst = new HashMap<>();
-            for (ProcessControlBlock pcb : processes) {
-                remainingBurst.put(pcb, pcb.getBurstTime());
-            }
-            // Encolar procesos que han llegado
-            while (index < procCopy.size() && procCopy.get(index).getArrivalTime() <= currentTime) {
-                queue.add(procCopy.get(index));
-                index++;
-            }
-            while (!queue.isEmpty()) {
-                ProcessControlBlock pcb = queue.poll();
-                int rem = remainingBurst.get(pcb);
-                int start = currentTime;
-                int execTime = Math.min(quantum, rem);
-                currentTime += execTime;
-                rem -= execTime;
-                schedule.add(new GanttBlock(pcb.getPid(), start, currentTime));
-                remainingBurst.put(pcb, rem);
-                // Encolar procesos nuevos que han llegado durante la ejecución
-                while (index < procCopy.size() && procCopy.get(index).getArrivalTime() <= currentTime) {
-                    queue.add(procCopy.get(index));
-                    index++;
+                case "SJF P": {
+                    SJFSchedulerPreemptive sjfP = new SJFSchedulerPreemptive(cloneProcesses());
+                    sjfP.execute();
+                    ganttEntries = sjfP.getGantt();
+                    break;
                 }
-                if (rem > 0) {
-                    queue.add(pcb);
-                } else {
-                    int turnaround = currentTime - pcb.getArrivalTime();
-                    int waiting = turnaround - pcb.getBurstTime();
-                    totalWaiting += waiting;
-                    totalTurnaround += turnaround;
+                case "Round Robin": {
+                    int q = Integer.parseInt(quantumField.getText().trim());
+                    RoundRobinScheduler rr = new RoundRobinScheduler(cloneProcesses(), q);
+                    rr.execute();
+                    ganttEntries = rr.getGantt();
+                    break;
                 }
-                if (queue.isEmpty() && index < procCopy.size()) {
-                    currentTime = procCopy.get(index).getArrivalTime();
-                    queue.add(procCopy.get(index));
-                    index++;
+                case "HRRN": {
+                    HRRNScheduler hrrn = new HRRNScheduler(cloneProcesses());
+                    hrrn.execute();
+                    ganttEntries = hrrn.getGantt();
+                    break;
                 }
+                case "Priority NP": {
+                    PrioritySchedulerNonPreemptive prioNP = new PrioritySchedulerNonPreemptive(cloneProcesses());
+                    prioNP.execute();
+                    ganttEntries = prioNP.getGantt();
+                    break;
+                }
+                case "Priority P": {
+                    PrioritySchedulerPreemptive prioP = new PrioritySchedulerPreemptive(cloneProcesses());
+                    prioP.execute();
+                    ganttEntries = prioP.getGantt();
+                    break;
+                }
+                case "MultiLevelQueue": {
+                    List<SchedulerAlgorithm> queues = Arrays.asList(
+                        new RoundRobinScheduler(cloneProcesses(), Integer.parseInt(quantumField.getText().trim())), //Prioridad 1
+                        new FCFS(cloneProcesses()),                                                                 //Prioridad 2
+                        new SJFSchedulerNonPreemptive(cloneProcesses())                                             //Prioridad 3
+                    );
+                    MultiLevelQueueScheduler mlq =
+                        new MultiLevelQueueScheduler(cloneProcesses(), queues);
+                    mlq.execute();
+                    ganttEntries = mlq.getGantt();
+                    totalWaiting = mlq.averageWaitingTime() * count;
+                    totalTurnaround = mlq.averageTurnaroundTime() * count;
+                    break;
+                }
+                default:
+                    throw new IllegalArgumentException("Unknown algorithm selected.");
             }
+            // Conversión de GanttEntry a GanttBlock
+            for (GanttEntry entry : ganttEntries) {
+                schedule.add(new GanttBlock(entry.getPid(), entry.getStart(), entry.getEnd()));
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "Error during scheduling: " + e.getMessage());
+            return;
         }
 
-        // Calcular promedios
-        int count = processes.size();
         double avgWaiting = totalWaiting / count;
         double avgTurnaround = totalTurnaround / count;
         avgLabel.setText(
                 String.format("Averages: Waiting Time: %.2f, Turnaround Time: %.2f", avgWaiting, avgTurnaround));
 
-        // Update y refresco del diagrama de Gantt
         ((GanttChartPanel) ganttPanel).setSchedule(schedule);
         ganttPanel.repaint();
     }
