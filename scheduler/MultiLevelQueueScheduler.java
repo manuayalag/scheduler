@@ -8,6 +8,7 @@ public class MultiLevelQueueScheduler extends SchedulerAlgorithm {
     public MultiLevelQueueScheduler(List<ProcessControlBlock> procs, List<SchedulerAlgorithm> queues) {
         super(procs);
         this.queues = queues;
+        this.gantt = new ArrayList<>();
     }
 
     @Override
