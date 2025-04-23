@@ -33,7 +33,7 @@ public class SchedulerGUI extends JFrame {
         JButton runButton = new JButton("Run Scheduling");
 
         loadButton.addActionListener(e -> {
-            File file = new File("C:\\Users\\acer\\Downloads\\Procesos.csv");
+            File file = new File("src/scheduler/Procesos.csv");
             try {
                 loadCSV(file);
             } catch (Exception ex) {
@@ -43,7 +43,7 @@ public class SchedulerGUI extends JFrame {
 
         runButton.addActionListener(e -> runScheduling());
 
-        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF", "Round Robin" });
+        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF", "Round Robin"});
         quantumField = new JTextField(5);
         quantumField.setEnabled(false);
 
