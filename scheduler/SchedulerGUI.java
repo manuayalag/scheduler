@@ -43,7 +43,8 @@ public class SchedulerGUI extends JFrame {
 
         runButton.addActionListener(e -> runScheduling());
 
-        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF NP", "SJF P", "Round Robin", "HRRN", "Priority NP", "Priority P", "MultiLevelQueue" });
+        algoBox = new JComboBox<>(new String[] { "FCFS", "SJF NP", "SJF P", "Round Robin", "HRRN", "Priority NP",
+                "Priority P", "MultiLevelQueue" });
         quantumField = new JTextField(5);
         quantumField.setEnabled(false);
 
@@ -173,13 +174,17 @@ public class SchedulerGUI extends JFrame {
                     break;
                 }
                 case "MultiLevelQueue": {
-                    List<SchedulerAlgorithm> queues = Arrays.asList(
-                        new RoundRobinScheduler(cloneProcesses(), Integer.parseInt(quantumField.getText().trim())), //Prioridad 1
-                        new FCFS(cloneProcesses()),                                                                 //Prioridad 2
-                        new SJFSchedulerNonPreemptive(cloneProcesses())                                             //Prioridad 3
+                    int quantum = Integer.parseInt(quantumField.getText().trim());
+                    List<SchedulerFactory> queues = Arrays.asList(
+                            // prioridad 1 → Round Robin con el quantum que introduzca usuario
+                            procs -> new RoundRobinScheduler(procs, quantum),
+                            // prioridad 2 → FCFS
+                            FCFS::new,
+                            // prioridad 3 → SJF no preemptivo
+                            SJFSchedulerNonPreemptive::new
                     );
-                    MultiLevelQueueScheduler mlq =
-                        new MultiLevelQueueScheduler(cloneProcesses(), queues);
+
+                    MultiLevelQueueScheduler mlq = new MultiLevelQueueScheduler(cloneProcesses(), queues);
                     mlq.execute();
                     ganttEntries = mlq.getGantt();
                     totalWaiting = mlq.averageWaitingTime() * count;
