@@ -49,7 +49,9 @@ public class SchedulerGUI extends JFrame {
         quantumField.setEnabled(false);
 
         algoBox.addActionListener(e -> {
-            quantumField.setEnabled(algoBox.getSelectedItem().toString().equals("Round Robin"));
+            String selectedAlgo = algoBox.getSelectedItem().toString();
+            // Habilitar el campo Quantum solo para Round Robin y MultiLevelQueue
+            quantumField.setEnabled(selectedAlgo.equals("Round Robin") || selectedAlgo.equals("MultiLevelQueue"));
         });
 
         controlPanel.add(loadButton);
