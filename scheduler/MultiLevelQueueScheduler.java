@@ -1,34 +1,53 @@
 package scheduler;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class MultiLevelQueueScheduler extends SchedulerAlgorithm {
-    private List<SchedulerAlgorithm> queues;
+    private List<SchedulerFactory> factories;
 
-    public MultiLevelQueueScheduler(List<ProcessControlBlock> procs, List<SchedulerAlgorithm> queues) {
+    public MultiLevelQueueScheduler(List<ProcessControlBlock> procs,
+                                    List<SchedulerFactory> factories) {
         super(procs);
-        this.queues = queues;
-        this.gantt = new ArrayList<>();
+        this.factories = factories;
+        this.gantt     = new ArrayList<>();
     }
 
     @Override
     public void execute() {
-        for (int i = 0; i < queues.size(); i++) {
-            SchedulerAlgorithm algo = queues.get(i);
-            List<ProcessControlBlock> subset = new ArrayList<>();
-            for (ProcessControlBlock p : processes) {
-                if (p.getPriority() == i+1) subset.add(p);
+        int currentTime = 0;
+
+        // Por cada nivel de prioridad (i→prioridad = i+1)
+        for (int i = 0; i < factories.size(); i++) {
+            int level = i + 1;
+            // Filtrar los PCB de esta prioridad
+            List<ProcessControlBlock> subset = processes.stream()
+                .filter(p -> p.getPriority() == level)
+                .map(p -> new ProcessControlBlock(
+                    p.getPid(), 0,
+                    p.getBurstTime(), p.getPriority()))
+                .collect(Collectors.toList());
+
+            if (subset.isEmpty()) continue;
+
+            // Creamos el scheduler adecuado y lo ejecutamos
+            SchedulerAlgorithm algo = factories.get(i).create(subset);
+            algo.execute();
+
+            // Desplazamos sus bloques en el tiempo global
+            for (GanttEntry e : algo.getGantt()) {
+                gantt.add(new GanttEntry(
+                    e.getPid(),
+                    e.getStart() + currentTime,
+                    e.getEnd()   + currentTime
+                ));
             }
-            try {
-                SchedulerAlgorithm inst = algo.getClass()
-                    .getConstructor(List.class)
-                    .newInstance(subset);
-                inst.execute();
-                gantt.addAll(inst.getGantt());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+
+            // Avanzamos currentTime al final de este subdiagrama
+            int lastEnd = algo.getGantt().stream()
+                .mapToInt(GanttEntry::getEnd)
+                .max().orElse(0);
+            currentTime += lastEnd;
         }
-        gantt.sort(Comparator.comparingInt(GanttEntry::getStart));
     }
 }
